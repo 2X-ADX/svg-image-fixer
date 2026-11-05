@@ -76,7 +76,15 @@ h1 { font-size: 26px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.01em
   clip: rect(0 0 0 0); white-space: nowrap;
 }
 
-#results { margin-top: 24px; display: grid; gap: 12px; }
+#results { margin-top: 12px; display: grid; gap: 12px; }
+.toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px; margin-top: 20px; min-height: 36px;
+  font-size: 14px; color: var(--muted);
+}
+.toolbar .btn { margin-top: 0; }
+button.btn { border: 0; cursor: pointer; font: inherit; font-weight: 600; }
+[hidden] { display: none !important; }
 .item {
   background: var(--card);
   border: 1px solid var(--line);
@@ -114,9 +122,14 @@ details ul { margin: 6px 0 0; padding-left: 18px; }
 
   <label id="drop" class="drop" tabindex="0">
     <input id="file" class="visually-hidden" type="file" accept=".svg,image/svg+xml" multiple>
-    <span class="drop-title">Choose SVG files or drop them here</span>
+    <span class="drop-title">Choose one or many SVG files, or drop them here</span>
     <span class="drop-note">Your original file is not changed. You get a new copy with "-fixed" in its name.</span>
   </label>
+
+  <div class="toolbar">
+    <span id="batch-status" aria-live="polite"></span>
+    <button id="zip-all" class="btn" type="button" hidden>Download all (ZIP)</button>
+  </div>
 
   <section id="results" aria-live="polite"></section>
 
@@ -351,18 +364,114 @@ function el(tag, cls, text) {
   return e;
 }
 
+// ZIP writer (stored, no compression), so all fixed files download as one archive
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function makeZip(files) {
+  const enc = new TextEncoder();
+  const used = new Set();
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+  for (const f of files) {
+    let name = f.name;
+    for (let i = 2; used.has(name); i++) name = f.name.replace(/\.svg$/i, "") + " (" + i + ").svg";
+    used.add(name);
+    const nameBytes = enc.encode(name);
+    const crc = crc32(f.bytes);
+    const size = f.bytes.length;
+
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true);
+    local.setUint16(4, 20, true);
+    local.setUint16(6, 0x0800, true);
+    local.setUint16(8, 0, true);
+    local.setUint16(10, 0, true);
+    local.setUint16(12, 0x21, true);
+    local.setUint32(14, crc, true);
+    local.setUint32(18, size, true);
+    local.setUint32(22, size, true);
+    local.setUint16(26, nameBytes.length, true);
+    local.setUint16(28, 0, true);
+    chunks.push(new Uint8Array(local.buffer), nameBytes, f.bytes);
+
+    const cd = new DataView(new ArrayBuffer(46));
+    cd.setUint32(0, 0x02014b50, true);
+    cd.setUint16(4, 20, true);
+    cd.setUint16(6, 20, true);
+    cd.setUint16(8, 0x0800, true);
+    cd.setUint16(10, 0, true);
+    cd.setUint16(12, 0, true);
+    cd.setUint16(14, 0x21, true);
+    cd.setUint32(16, crc, true);
+    cd.setUint32(20, size, true);
+    cd.setUint32(24, size, true);
+    cd.setUint16(28, nameBytes.length, true);
+    cd.setUint32(42, offset, true);
+    central.push(new Uint8Array(cd.buffer), nameBytes);
+    offset += 30 + nameBytes.length + size;
+  }
+  const cdSize = central.reduce((s, c) => s + c.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(8, files.length, true);
+  end.setUint16(10, files.length, true);
+  end.setUint32(12, cdSize, true);
+  end.setUint32(16, offset, true);
+  return new Blob([...chunks, ...central, new Uint8Array(end.buffer)], { type: "application/zip" });
+}
+
+const fixedFiles = [];
+const zipBtn = document.getElementById("zip-all");
+const batchStatus = document.getElementById("batch-status");
+let pending = 0;
+
+function updateToolbar() {
+  const count = results.children.length;
+  zipBtn.hidden = fixedFiles.length === 0;
+  zipBtn.textContent = "Download all " + fixedFiles.length + " fixed file" + (fixedFiles.length === 1 ? "" : "s") + " (ZIP)";
+  batchStatus.textContent = pending
+    ? "Fixing " + pending + " file" + (pending === 1 ? "" : "s") + "…"
+    : (count ? count + " file" + (count === 1 ? "" : "s") + " processed" : "");
+}
+
 async function handleFiles(files) {
-  for (const file of Array.from(files)) {
+  const all = Array.from(files);
+  const svgs = all.filter(f => /\.svg$/i.test(f.name) || f.type === "image/svg+xml");
+  if (all.length - svgs.length) {
+    const note = el("article", "item");
+    note.appendChild(el("p", "status none", (all.length - svgs.length) + " file" + (all.length - svgs.length === 1 ? " was" : "s were") + " skipped because " + (all.length - svgs.length === 1 ? "it is" : "they are") + " not SVG."));
+    results.appendChild(note);
+  }
+  pending += svgs.length;
+  updateToolbar();
+  for (const file of svgs) {
     const card = el("article", "item");
     card.appendChild(el("div", "item-name", file.name));
-    results.prepend(card);
+    results.appendChild(card);
     try {
       const out = convertSvg(await file.text());
       if (out.converted === 0) {
         card.appendChild(el("p", "status none", "No image fills to fix. The file is unchanged."));
       } else {
         const name = file.name.replace(/\.svg$/i, "") + "-fixed.svg";
-        const url = URL.createObjectURL(new Blob([out.text], { type: "image/svg+xml" }));
+        const bytes = new TextEncoder().encode(out.text);
+        fixedFiles.push({ name, bytes });
+        const url = URL.createObjectURL(new Blob([bytes], { type: "image/svg+xml" }));
         card.appendChild(el("p", "status ok", "Fixed " + out.converted + " image" + (out.converted === 1 ? "" : "s") + "."));
         const link = el("a", "btn", "Download fixed SVG");
         link.href = url;
@@ -379,22 +488,41 @@ async function handleFiles(files) {
       }
     } catch (err) {
       card.appendChild(el("p", "status bad", "Could not fix this file: " + err.message));
+    } finally {
+      pending--;
+      updateToolbar();
     }
   }
   input.value = "";
+  updateToolbar();
 }
+
+zipBtn.addEventListener("click", () => {
+  const url = URL.createObjectURL(makeZip(fixedFiles));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "svg-fixed-" + new Date().toISOString().slice(0, 10) + ".zip";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+});
 
 input.addEventListener("change", () => handleFiles(input.files));
 drop.addEventListener("keydown", e => {
   if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); }
 });
-["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => {
-  e.preventDefault(); drop.classList.add("over");
-}));
-["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => {
-  e.preventDefault(); drop.classList.remove("over");
-}));
-drop.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
+// Dropping anywhere on the page sends the files to the tool, and stops the browser opening them
+drop.addEventListener("dragenter", () => drop.classList.add("over"));
+drop.addEventListener("dragover", () => drop.classList.add("over"));
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+window.addEventListener("dragover", e => e.preventDefault());
+window.addEventListener("drop", e => {
+  e.preventDefault();
+  drop.classList.remove("over");
+  if (e.dataTransfer && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+});
+updateToolbar();
 </script>
 </body>
 </html>
