@@ -237,6 +237,36 @@ function convertSvg(text) {
     svg.insertBefore(defs, svg.firstChild);
   }
 
+  // A mask made of one opaque shape becomes a clip path. Illustrator turns a mask into a
+  // transparency mask based on colour, which greys out whatever it covers.
+  let maskN = 0;
+  const maskIds = [];
+  for (const mk of Array.from(svg.querySelectorAll("mask"))) {
+    const kids = Array.from(mk.children);
+    if (kids.length !== 1 || (kids[0].localName !== "path" && kids[0].localName !== "rect")) continue;
+    const child = kids[0];
+    const id = mk.getAttribute("id");
+    const fill = (child.getAttribute("fill") || "").toLowerCase();
+    const alphaMask = /mask-type\s*:\s*alpha/.test(mk.getAttribute("style") || "");
+    const whiteFill = fill === "white" || fill === "#fff" || fill === "#ffffff";
+    if (!id || fill === "none" || !(alphaMask || whiteFill)) continue;
+    if (child.hasAttribute("opacity") || child.hasAttribute("fill-opacity") || child.hasAttribute("style")) continue;
+    const users = Array.from(svg.querySelectorAll("[mask]")).filter(e => e.getAttribute("mask") === "url(#" + id + ")");
+    if (!users.length || users.some(e => e.hasAttribute("clip-path"))) continue;
+    const clipId = "fix-mask-" + (++maskN);
+    const clip = doc.createElementNS(SVG_NS, "clipPath");
+    clip.setAttribute("id", clipId);
+    const shape = child.cloneNode(false);
+    for (const attr of ["id", "fill", "stroke", "opacity", "fill-opacity"]) shape.removeAttribute(attr);
+    clip.appendChild(shape);
+    defs.appendChild(clip);
+    for (const e of users) {
+      e.removeAttribute("mask");
+      e.setAttribute("clip-path", "url(#" + clipId + ")");
+    }
+    maskIds.push(id);
+  }
+
   let converted = 0;
   const skipped = [];
   let n = 0;
@@ -342,6 +372,11 @@ function convertSvg(text) {
         im.parentNode.removeChild(im);
       }
     }
+  }
+  // Remove masks that were converted and nothing uses any more
+  for (const mk of Array.from(svg.querySelectorAll("mask"))) {
+    const id = mk.getAttribute("id");
+    if (id && maskIds.includes(id) && !usesId(id, mk)) mk.parentNode.removeChild(mk);
   }
   if (!defs.childNodes.length) defs.parentNode.removeChild(defs);
 
