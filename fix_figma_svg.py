@@ -17,21 +17,36 @@ SVG_NS = "http://www.w3.org/2000/svg"
 XLINK = "http://www.w3.org/1999/xlink"
 
 
+def _mul(M, N):
+    """Multiply two 2D affine matrices given as (a, b, c, d, e, f)."""
+    return (
+        M[0] * N[0] + M[2] * N[1],
+        M[1] * N[0] + M[3] * N[1],
+        M[0] * N[2] + M[2] * N[3],
+        M[1] * N[2] + M[3] * N[3],
+        M[0] * N[4] + M[2] * N[5] + M[4],
+        M[1] * N[4] + M[3] * N[5] + M[5],
+    )
+
+
 def parse_transform(s):
-    """Return (tx, ty, sx, sy) for translate/scale lists, or raise."""
-    tx = ty = 0.0
-    sx = sy = 1.0
-    for name, args in re.findall(r"(\w+)\(([^)]*)\)", s or ""):
+    """Return the affine matrix (a, b, c, d, e, f) for a transform list.
+
+    Supports translate, scale and matrix, in the order they are written.
+    """
+    M = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+    for name, args in re.findall(r"(\w+)\s*\(([^)]*)\)", s or ""):
         v = [float(x) for x in re.split(r"[ ,]+", args.strip()) if x]
         if name == "translate":
-            tx += v[0]
-            ty += v[1] if len(v) > 1 else 0.0
+            N = (1.0, 0.0, 0.0, 1.0, v[0], v[1] if len(v) > 1 else 0.0)
         elif name == "scale":
-            sx *= v[0]
-            sy *= v[1] if len(v) > 1 else v[0]
+            N = (v[0], 0.0, 0.0, v[1] if len(v) > 1 else v[0], 0.0, 0.0)
+        elif name == "matrix":
+            N = tuple(v)
         else:
             raise ValueError(f"unsupported transform: {name}")
-    return tx, ty, sx, sy
+        M = _mul(M, N)
+    return M
 
 
 def path_bbox(d):
@@ -118,7 +133,10 @@ def convert(text):
         if image_id not in images:
             return tag
         img_w, img_h, href = images[image_id]
-        tx, ty, sx, sy = parse_transform(use_tr)
+        a, b, c, d, tx, ty = parse_transform(use_tr)
+        if b or c or a <= 0 or d <= 0:
+            raise ValueError("rotated, skewed or flipped images are not supported")
+        sx, sy = a, d
 
         if tag.startswith("<path"):
             d = get_attr(tag, "d")
