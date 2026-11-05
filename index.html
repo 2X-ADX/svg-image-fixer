@@ -1,129 +1,262 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SVG Image Fixer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SVG Image Fixer — 2X Experience Design Solutions</title>
+<link rel="icon" href="static/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="static/favicon.svg">
+<meta name="theme-color" content="#151515">
 <style>
 :root {
-  --bg: #f5f4f0;
-  --fg: #1b1e22;
-  --muted: #5d636b;
-  --line: #d8d5cd;
-  --card: #ffffff;
-  --accent: #1f5f7a;
-  --accent-fg: #ffffff;
-  --ok: #1d6b41;
-  --bad: #a12c2c;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #15171a;
-    --fg: #ecebe8;
-    --muted: #a0a6ae;
-    --line: #353a41;
-    --card: #1d2024;
-    --accent: #7fbcd6;
-    --accent-fg: #0f1417;
-    --ok: #74d19c;
-    --bad: #ff8d8d;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #15171a;
-  --fg: #ecebe8;
-  --muted: #a0a6ae;
-  --line: #353a41;
-  --card: #1d2024;
-  --accent: #7fbcd6;
-  --accent-fg: #0f1417;
-  --ok: #74d19c;
-  --bad: #ff8d8d;
   color-scheme: dark;
+  --bg: #151515;
+  --side: #1a1a1a;
+  --surface: #1d1d1d;
+  --surface-2: #242424;
+  --text: #f4f4f2;
+  --muted: #a3a3a0;
+  --line: #333333;
+  --accent: #3b9bff;
+  --bad: #ff7a7a;
+  --good: #4cc9a4;
+  --warn: #f0b34a;
+  --topbar: rgba(21, 21, 21, .92);
+  --red: #ff0f0f;
+  --cta: #ff0f0f;
+  --cta-text: #ffffff;
+  --focus: #ffffff;
+  --active: #2a2a2a;
+}
+html[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f5f5;
+  --side: #ececec;
+  --surface: #ffffff;
+  --surface-2: #efefed;
+  --text: #151515;
+  --muted: #5d5d5d;
+  --line: #dcdcd8;
+  --accent: #0065cc;
+  --bad: #b42323;
+  --good: #0b7a5c;
+  --warn: #8a5a00;
+  --topbar: rgba(245, 245, 245, .92);
+  --active: #e4e4e4;
+  --focus: #151515;
 }
 * { box-sizing: border-box; }
+html, body { margin: 0; }
 body {
-  margin: 0;
   background: var(--bg);
-  color: var(--fg);
-  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-text-size-adjust: 100%;
 }
-main {
-  max-width: 680px;
-  margin: 0 auto;
-  padding: 40px max(16px, env(safe-area-inset-right, 0px)) 56px max(16px, env(safe-area-inset-left, 0px));
-}
-h1 { font-size: 26px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.01em; }
-.lede { color: var(--muted); margin: 0 0 28px; text-wrap: pretty; }
+[hidden] { display: none !important; }
 
+/* Top bar, same structure as the Creative Hub */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 64px;
+  padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+  background: var(--topbar);
+  border-bottom: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.brand { display: inline-flex; align-items: center; min-width: 0; color: inherit; text-decoration: none; }
+.brand-logo { height: 28px; width: auto; display: block; }
+.brand-logo-light { display: none; }
+html[data-theme="light"] .brand-logo-dark { display: none; }
+html[data-theme="light"] .brand-logo-light { display: block; }
+.brand-name {
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.icon-btn svg { width: 20px; height: 20px; }
+.icon-btn:hover { background: var(--active); }
+.icon-btn:focus-visible, .btn:focus-visible, .drop:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Page */
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 36px max(16px, env(safe-area-inset-right, 0px)) 56px max(16px, env(safe-area-inset-left, 0px));
+}
+.eyebrow {
+  margin: 0 0 12px;
+  color: var(--red);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+h1 {
+  margin: 0 0 12px;
+  font-size: clamp(26px, 6vw, 36px);
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  text-wrap: balance;
+}
+.lede {
+  margin: 0 0 28px;
+  color: var(--muted);
+  max-width: 60ch;
+  text-wrap: pretty;
+}
+
+/* Drop zone */
 .drop {
   display: block;
-  border: 1.5px dashed var(--line);
-  border-radius: 10px;
   padding: 36px 20px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  background: var(--surface);
   text-align: center;
   cursor: pointer;
-  background: var(--card);
+  transition: border-color .15s ease, background .15s ease;
 }
-.drop:hover, .drop:focus-visible, .drop.over { border-color: var(--accent); outline: none; }
-.drop:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
-.drop-title { font-weight: 600; display: block; }
-.drop-note { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--surface-2); }
+.drop-title { display: block; font-weight: 600; font-size: 16px; }
+.drop-note { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; }
+.drop-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: 16px;
+  padding: 0 18px;
+  border-radius: 10px;
+  background: var(--cta);
+  color: var(--cta-text);
+  font-weight: 600;
+  font-size: 15px;
+}
 .visually-hidden {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap;
 }
 
-#results { margin-top: 12px; display: grid; gap: 12px; }
+/* Toolbar and results */
 .toolbar {
-  display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 12px; margin-top: 20px; min-height: 36px;
-  font-size: 14px; color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  margin-top: 24px;
+  color: var(--muted);
+  font-size: 14px;
 }
-.toolbar .btn { margin-top: 0; }
-button.btn { border: 0; cursor: pointer; font: inherit; font-weight: 600; }
-[hidden] { display: none !important; }
-.item {
-  background: var(--card);
-  border: 1px solid var(--line);
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
   border-radius: 10px;
-  padding: 14px 16px;
+  background: var(--cta);
+  color: var(--cta-text);
+  font: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn:hover { filter: brightness(1.08); }
+#results { display: grid; gap: 12px; margin-top: 12px; }
+.item {
   min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
 }
 .item-name { font-weight: 600; overflow-wrap: anywhere; }
 .status { margin: 4px 0 0; font-size: 14px; }
-.status.ok { color: var(--ok); }
+.status.ok { color: var(--good); }
 .status.none { color: var(--muted); }
 .status.bad { color: var(--bad); }
-.btn {
-  display: inline-block;
-  margin-top: 10px;
-  padding: 7px 14px;
-  border-radius: 7px;
-  background: var(--accent);
-  color: var(--accent-fg);
-  font-weight: 600;
-  text-decoration: none;
-  font-size: 14px;
-}
-.btn:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
-details { margin-top: 10px; font-size: 13px; color: var(--muted); }
-details summary { cursor: pointer; }
+.item .btn { margin-top: 12px; width: 100%; }
+details { margin-top: 12px; font-size: 13px; color: var(--muted); }
+details summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; }
 details ul { margin: 6px 0 0; padding-left: 18px; }
-.foot { margin-top: 32px; font-size: 13px; color: var(--muted); }
+.foot { margin: 36px 0 0; color: var(--muted); font-size: 13px; text-wrap: pretty; }
+
+/* Phones and small screens */
+@media (min-width: 560px) {
+  .item { display: grid; grid-template-columns: 1fr auto; column-gap: 16px; align-items: center; }
+  .item .item-name, .item .status, .item details { grid-column: 1; }
+  .item .btn { grid-column: 2; grid-row: 1 / span 2; margin-top: 0; width: auto; }
+}
+@media (max-width: 480px) {
+  .brand-name { display: none; }
+  .drop { padding: 28px 16px; }
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .toolbar .btn { width: 100%; }
+  main { padding-top: 28px; }
+}
 </style>
 </head>
 <body>
+<header class="topbar">
+  <a class="brand" href="./" aria-label="2X Experience Design Solutions">
+    <img class="brand-logo brand-logo-dark" src="static/logo-dark.svg" alt="2X">
+    <img class="brand-logo brand-logo-light" src="static/logo-light.svg" alt="2X">
+    <span class="brand-name">SVG Image Fixer</span>
+  </a>
+  <button id="theme-toggle" class="icon-btn" type="button" aria-label="Switch to light mode" title="Switch theme">
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+      <circle cx="12" cy="12" r="8.75"></circle>
+      <path d="M12 3.25a8.75 8.75 0 0 0 0 17.5V3.25Z" fill="currentColor" stroke="none"></path>
+    </svg>
+  </button>
+</header>
+
 <main>
-  <h1>SVG Image Fixer</h1>
-  <p class="lede">Some Figma SVG exports lose their images when opened in Illustrator and similar tools. Choose the file here to get a copy where the images show. Your files are processed on this computer and never uploaded.</p>
+  <p class="eyebrow">Experience Design Solutions · Figma export fixer</p>
+  <h1>Keep your images when you open SVGs in Illustrator.</h1>
+  <p class="lede">Some Figma SVG exports lose their images in Illustrator and similar tools. Add one or many files and get fixed copies where the images show. Files are processed on this computer and never uploaded.</p>
 
   <label id="drop" class="drop" tabindex="0">
     <input id="file" class="visually-hidden" type="file" accept=".svg,image/svg+xml" multiple>
-    <span class="drop-title">Choose one or many SVG files, or drop them here</span>
-    <span class="drop-note">Your original file is not changed. You get a new copy with "-fixed" in its name.</span>
+    <span class="drop-title">Choose SVG files or drop them here</span>
+    <span class="drop-note">Your originals are not changed. Fixed copies end in “-fixed”.</span>
+    <span class="drop-cta">Choose files</span>
   </label>
 
   <div class="toolbar">
@@ -133,431 +266,29 @@ details ul { margin: 6px 0 0; padding-left: 18px; }
 
   <section id="results" aria-live="polite"></section>
 
-  <p class="foot">Works with images placed inside a shape through a pattern, the way Figma exports them. Rectangles and paths are supported. Anything else is left as it was and listed under the file.</p>
+  <p class="foot">Works with images placed inside a shape through a pattern, the way Figma exports them. Rectangles, paths and single-shape masks are supported. Anything else is left as it was and listed under the file.</p>
 </main>
 
 <script>
-const SVG_NS = "http://www.w3.org/2000/svg";
-const XLINK = "http://www.w3.org/1999/xlink";
-
-// 2D affine matrices as [a, b, c, d, e, f]
-function mul(M, N) {
-  return [
-    M[0] * N[0] + M[2] * N[1],
-    M[1] * N[0] + M[3] * N[1],
-    M[0] * N[2] + M[2] * N[3],
-    M[1] * N[2] + M[3] * N[3],
-    M[0] * N[4] + M[2] * N[5] + M[4],
-    M[1] * N[4] + M[3] * N[5] + M[5]
-  ];
-}
-
-function parseTransform(s) {
-  let M = [1, 0, 0, 1, 0, 0];
-  const re = /(\w+)\s*\(([^)]*)\)/g;
-  let m;
-  while ((m = re.exec(s || ""))) {
-    const v = m[2].trim().split(/[\s,]+/).filter(Boolean).map(Number);
-    let N;
-    if (m[1] === "translate") N = [1, 0, 0, 1, v[0], v[1] || 0];
-    else if (m[1] === "scale") N = [v[0], 0, 0, v.length > 1 ? v[1] : v[0], 0, 0];
-    else if (m[1] === "matrix") N = v;
-    else throw new Error("transform '" + m[1] + "' is not supported");
-    M = mul(M, N);
+// Theme: dark by default, as on the Creative Hub. The choice is remembered in this browser.
+(function () {
+  const root = document.documentElement;
+  const btn = document.getElementById("theme-toggle");
+  function apply(theme) {
+    root.setAttribute("data-theme", theme);
+    btn.setAttribute("aria-label", theme === "dark" ? "Switch to light mode" : "Switch to dark mode");
+    btn.title = btn.getAttribute("aria-label");
   }
-  return M;
-}
-
-// Bounding box [x, y, width, height] of a path made of M, L, H, V, C and Z
-function pathBBox(d) {
-  const t = d.match(/[A-Za-z]|-?(?:\d+\.?\d*|\.\d+)(?:e-?\d+)?/g) || [];
-  let i = 0, cmd = null, cur = [0, 0], start = [0, 0];
-  const pts = [];
-  const num = () => {
-    if (i >= t.length) throw new Error("path data is incomplete");
-    return parseFloat(t[i++]);
-  };
-  while (i < t.length) {
-    if (/^[A-Za-z]$/.test(t[i])) {
-      cmd = t[i++];
-      if (cmd === "Z") { cur = start.slice(); continue; }
-    }
-    if (cmd === "M") { cur = [num(), num()]; start = cur; pts.push(cur); cmd = "L"; }
-    else if (cmd === "L") { cur = [num(), num()]; pts.push(cur); }
-    else if (cmd === "H") { cur = [num(), cur[1]]; pts.push(cur); }
-    else if (cmd === "V") { cur = [cur[0], num()]; pts.push(cur); }
-    else if (cmd === "C") {
-      const p1 = [num(), num()], p2 = [num(), num()], p3 = [num(), num()], p0 = cur;
-      for (let k = 1; k <= 100; k++) {
-        const s = k / 100, u = 1 - s;
-        pts.push([
-          u * u * u * p0[0] + 3 * u * u * s * p1[0] + 3 * u * s * s * p2[0] + s * s * s * p3[0],
-          u * u * u * p0[1] + 3 * u * u * s * p1[1] + 3 * u * s * s * p2[1] + s * s * s * p3[1]
-        ]);
-      }
-      cur = p3;
-    }
-    else throw new Error("path command '" + cmd + "' is not supported");
-  }
-  if (!pts.length) throw new Error("path has no points");
-  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
-  const x0 = Math.min(...xs), y0 = Math.min(...ys);
-  return [x0, y0, Math.max(...xs) - x0, Math.max(...ys) - y0];
-}
-
-const round = v => Number(v.toFixed(4));
-
-function convertSvg(text) {
-  const doc = new DOMParser().parseFromString(text, "image/svg+xml");
-  if (doc.getElementsByTagName("parsererror").length) throw new Error("this file is not valid SVG");
-  const svg = doc.documentElement;
-  if (svg.localName !== "svg") throw new Error("this file is not an SVG drawing");
-
-  // Pattern id -> { element, image id, transform }
-  const patterns = new Map();
-  for (const p of svg.querySelectorAll("pattern")) {
-    const use = p.querySelector("use");
-    if (!use) continue;
-    const href = use.getAttributeNS(XLINK, "href") || use.getAttribute("href") || "";
-    patterns.set(p.getAttribute("id"), {
-      element: p,
-      imageId: href.replace(/^#/, ""),
-      transform: use.getAttribute("transform") || ""
-    });
-  }
-
-  const images = new Map();
-  for (const im of svg.querySelectorAll("image")) {
-    if (im.getAttribute("id")) images.set(im.getAttribute("id"), im);
-  }
-
-  let defs = svg.querySelector("defs");
-  if (!defs) {
-    defs = doc.createElementNS(SVG_NS, "defs");
-    svg.insertBefore(defs, svg.firstChild);
-  }
-
-  // A mask made of one opaque shape becomes a clip path. Illustrator turns a mask into a
-  // transparency mask based on colour, which greys out whatever it covers.
-  let maskN = 0;
-  const maskIds = [];
-  for (const mk of Array.from(svg.querySelectorAll("mask"))) {
-    const kids = Array.from(mk.children);
-    if (kids.length !== 1 || (kids[0].localName !== "path" && kids[0].localName !== "rect")) continue;
-    const child = kids[0];
-    const id = mk.getAttribute("id");
-    const fill = (child.getAttribute("fill") || "").toLowerCase();
-    const alphaMask = /mask-type\s*:\s*alpha/.test(mk.getAttribute("style") || "");
-    const whiteFill = fill === "white" || fill === "#fff" || fill === "#ffffff";
-    if (!id || fill === "none" || !(alphaMask || whiteFill)) continue;
-    if (child.hasAttribute("opacity") || child.hasAttribute("fill-opacity") || child.hasAttribute("style")) continue;
-    const users = Array.from(svg.querySelectorAll("[mask]")).filter(e => e.getAttribute("mask") === "url(#" + id + ")");
-    if (!users.length || users.some(e => e.hasAttribute("clip-path"))) continue;
-    const clipId = "fix-mask-" + (++maskN);
-    const clip = doc.createElementNS(SVG_NS, "clipPath");
-    clip.setAttribute("id", clipId);
-    const shape = child.cloneNode(false);
-    for (const attr of ["id", "fill", "stroke", "opacity", "fill-opacity"]) shape.removeAttribute(attr);
-    clip.appendChild(shape);
-    defs.appendChild(clip);
-    for (const e of users) {
-      e.removeAttribute("mask");
-      e.setAttribute("clip-path", "url(#" + clipId + ")");
-    }
-    maskIds.push(id);
-  }
-
-  let converted = 0;
-  const skipped = [];
-  let n = 0;
-
-  for (const shape of Array.from(svg.querySelectorAll("path, rect"))) {
-    const fill = shape.getAttribute("fill") || "";
-    const m = fill.match(/^url\(#(.+)\)$/);
-    if (!m) continue;
-    const pat = patterns.get(m[1]);
-    if (!pat) continue; // a gradient or other fill, not an image pattern
-
-    const label = shape.getAttribute("id") || (shape.localName + " " + (converted + skipped.length + 1));
-    try {
-      const img = images.get(pat.imageId);
-      if (!img) throw new Error("the image it uses is missing from the file");
-      if (shape.hasAttribute("clip-path") || shape.hasAttribute("mask") || shape.hasAttribute("filter")) {
-        throw new Error("the shape already has a clip, mask or filter");
-      }
-
-      const [a, b, c, d, e, f] = parseTransform(pat.transform);
-      if (b || c || a <= 0 || d <= 0) throw new Error("rotated, skewed or flipped images are not supported");
-      const imgW = parseFloat(img.getAttribute("width"));
-      const imgH = parseFloat(img.getAttribute("height"));
-      if (!imgW || !imgH) throw new Error("the image has no width or height");
-
-      let x0, y0, w, h;
-      if (shape.localName === "rect") {
-        x0 = parseFloat(shape.getAttribute("x") || 0);
-        y0 = parseFloat(shape.getAttribute("y") || 0);
-        w = parseFloat(shape.getAttribute("width"));
-        h = parseFloat(shape.getAttribute("height"));
-      } else {
-        [x0, y0, w, h] = pathBBox(shape.getAttribute("d") || "");
-      }
-
-      // Pattern content is measured in the shape's bounding box unless the pattern says otherwise
-      const inUserUnits = pat.element.getAttribute("patternContentUnits") === "userSpaceOnUse";
-      const left = inUserUnits ? e : x0 + e * w;
-      const top = inUserUnits ? f : y0 + f * h;
-      const width = inUserUnits ? a * imgW : a * imgW * w;
-      const height = inUserUnits ? d * imgH : d * imgH * h;
-
-      const clipId = "fix-clip-" + (++n);
-      const clip = doc.createElementNS(SVG_NS, "clipPath");
-      clip.setAttribute("id", clipId);
-      const clipShape = shape.cloneNode(false);
-      for (const attr of ["id", "fill", "stroke", "opacity", "transform", "style"]) clipShape.removeAttribute(attr);
-      clip.appendChild(clipShape);
-      defs.appendChild(clip);
-
-      // Wrapper keeps the shape's own transform and opacity
-      const wrapper = doc.createElementNS(SVG_NS, "g");
-      for (const attr of ["transform", "opacity"]) {
-        if (shape.hasAttribute(attr)) wrapper.setAttribute(attr, shape.getAttribute(attr));
-      }
-
-      const clipped = doc.createElementNS(SVG_NS, "g");
-      clipped.setAttribute("clip-path", "url(#" + clipId + ")");
-      const image = doc.createElementNS(SVG_NS, "image");
-      image.setAttribute("x", round(left));
-      image.setAttribute("y", round(top));
-      image.setAttribute("width", round(width));
-      image.setAttribute("height", round(height));
-      image.setAttribute("preserveAspectRatio", "none");
-      image.setAttributeNS(XLINK, "xlink:href", img.getAttributeNS(XLINK, "href") || img.getAttribute("href"));
-      clipped.appendChild(image);
-      wrapper.appendChild(clipped);
-
-      // Keep an outline if the shape had a stroke
-      const stroke = shape.getAttribute("stroke");
-      if (stroke && stroke !== "none") {
-        const outline = shape.cloneNode(false);
-        for (const attr of ["id", "fill", "clip-path", "transform", "opacity"]) outline.removeAttribute(attr);
-        outline.setAttribute("fill", "none");
-        wrapper.appendChild(outline);
-      }
-
-      shape.parentNode.replaceChild(wrapper, shape);
-      converted++;
-    } catch (err) {
-      skipped.push({ label, reason: err.message });
-    }
-  }
-
-  if (converted === 0) {
-    return { text: null, converted: 0, skipped };
-  }
-
-  // Remove patterns and images that nothing uses any more
-  const usesId = (id, skipEl) => {
-    const re = new RegExp("#" + id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\w-])");
-    for (const el of svg.querySelectorAll("*")) {
-      if (skipEl && (el === skipEl || skipEl.contains(el))) continue;
-      for (const attr of el.attributes) if (re.test(attr.value)) return true;
-    }
-    return false;
-  };
-  for (const [pid, pat] of patterns) {
-    if (!usesId(pid, pat.element)) {
-      pat.element.parentNode.removeChild(pat.element);
-      if (pat.imageId && images.has(pat.imageId) && !usesId(pat.imageId, null)) {
-        const im = images.get(pat.imageId);
-        im.parentNode.removeChild(im);
-      }
-    }
-  }
-  // Remove masks that were converted and nothing uses any more
-  for (const mk of Array.from(svg.querySelectorAll("mask"))) {
-    const id = mk.getAttribute("id");
-    if (id && maskIds.includes(id) && !usesId(id, mk)) mk.parentNode.removeChild(mk);
-  }
-  if (!defs.childNodes.length) defs.parentNode.removeChild(defs);
-
-  const outText = '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(svg);
-  if (new DOMParser().parseFromString(outText, "image/svg+xml").getElementsByTagName("parsererror").length) {
-    throw new Error("the converted file did not validate");
-  }
-  return { text: outText, converted, skipped };
-}
-
-// ---- page ----
-const drop = document.getElementById("drop");
-const input = document.getElementById("file");
-const results = document.getElementById("results");
-
-function el(tag, cls, text) {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (text != null) e.textContent = text;
-  return e;
-}
-
-// ZIP writer (stored, no compression), so all fixed files download as one archive
-const CRC_TABLE = (() => {
-  const t = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
-    t[n] = c >>> 0;
-  }
-  return t;
+  let saved = null;
+  try { saved = localStorage.getItem("svgfixer-theme"); } catch (e) {}
+  apply(saved === "light" ? "light" : "dark");
+  btn.addEventListener("click", () => {
+    const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    apply(next);
+    try { localStorage.setItem("svgfixer-theme", next); } catch (e) {}
+  });
 })();
-
-function crc32(bytes) {
-  let c = 0xFFFFFFFF;
-  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
-  return (c ^ 0xFFFFFFFF) >>> 0;
-}
-
-function makeZip(files) {
-  const enc = new TextEncoder();
-  const used = new Set();
-  const chunks = [];
-  const central = [];
-  let offset = 0;
-  for (const f of files) {
-    let name = f.name;
-    for (let i = 2; used.has(name); i++) name = f.name.replace(/\.svg$/i, "") + " (" + i + ").svg";
-    used.add(name);
-    const nameBytes = enc.encode(name);
-    const crc = crc32(f.bytes);
-    const size = f.bytes.length;
-
-    const local = new DataView(new ArrayBuffer(30));
-    local.setUint32(0, 0x04034b50, true);
-    local.setUint16(4, 20, true);
-    local.setUint16(6, 0x0800, true);
-    local.setUint16(8, 0, true);
-    local.setUint16(10, 0, true);
-    local.setUint16(12, 0x21, true);
-    local.setUint32(14, crc, true);
-    local.setUint32(18, size, true);
-    local.setUint32(22, size, true);
-    local.setUint16(26, nameBytes.length, true);
-    local.setUint16(28, 0, true);
-    chunks.push(new Uint8Array(local.buffer), nameBytes, f.bytes);
-
-    const cd = new DataView(new ArrayBuffer(46));
-    cd.setUint32(0, 0x02014b50, true);
-    cd.setUint16(4, 20, true);
-    cd.setUint16(6, 20, true);
-    cd.setUint16(8, 0x0800, true);
-    cd.setUint16(10, 0, true);
-    cd.setUint16(12, 0, true);
-    cd.setUint16(14, 0x21, true);
-    cd.setUint32(16, crc, true);
-    cd.setUint32(20, size, true);
-    cd.setUint32(24, size, true);
-    cd.setUint16(28, nameBytes.length, true);
-    cd.setUint32(42, offset, true);
-    central.push(new Uint8Array(cd.buffer), nameBytes);
-    offset += 30 + nameBytes.length + size;
-  }
-  const cdSize = central.reduce((s, c) => s + c.length, 0);
-  const end = new DataView(new ArrayBuffer(22));
-  end.setUint32(0, 0x06054b50, true);
-  end.setUint16(8, files.length, true);
-  end.setUint16(10, files.length, true);
-  end.setUint32(12, cdSize, true);
-  end.setUint32(16, offset, true);
-  return new Blob([...chunks, ...central, new Uint8Array(end.buffer)], { type: "application/zip" });
-}
-
-const fixedFiles = [];
-const zipBtn = document.getElementById("zip-all");
-const batchStatus = document.getElementById("batch-status");
-let pending = 0;
-
-function updateToolbar() {
-  const count = results.children.length;
-  zipBtn.hidden = fixedFiles.length === 0;
-  zipBtn.textContent = "Download all " + fixedFiles.length + " fixed file" + (fixedFiles.length === 1 ? "" : "s") + " (ZIP)";
-  batchStatus.textContent = pending
-    ? "Fixing " + pending + " file" + (pending === 1 ? "" : "s") + "…"
-    : (count ? count + " file" + (count === 1 ? "" : "s") + " processed" : "");
-}
-
-async function handleFiles(files) {
-  const all = Array.from(files);
-  const svgs = all.filter(f => /\.svg$/i.test(f.name) || f.type === "image/svg+xml");
-  if (all.length - svgs.length) {
-    const note = el("article", "item");
-    note.appendChild(el("p", "status none", (all.length - svgs.length) + " file" + (all.length - svgs.length === 1 ? " was" : "s were") + " skipped because " + (all.length - svgs.length === 1 ? "it is" : "they are") + " not SVG."));
-    results.appendChild(note);
-  }
-  pending += svgs.length;
-  updateToolbar();
-  for (const file of svgs) {
-    const card = el("article", "item");
-    card.appendChild(el("div", "item-name", file.name));
-    results.appendChild(card);
-    try {
-      const out = convertSvg(await file.text());
-      if (out.converted === 0) {
-        card.appendChild(el("p", "status none", "No image fills to fix. The file is unchanged."));
-      } else {
-        const name = file.name.replace(/\.svg$/i, "") + "-fixed.svg";
-        const bytes = new TextEncoder().encode(out.text);
-        fixedFiles.push({ name, bytes });
-        const url = URL.createObjectURL(new Blob([bytes], { type: "image/svg+xml" }));
-        card.appendChild(el("p", "status ok", "Fixed " + out.converted + " image" + (out.converted === 1 ? "" : "s") + "."));
-        const link = el("a", "btn", "Download fixed SVG");
-        link.href = url;
-        link.download = name;
-        card.appendChild(link);
-      }
-      if (out.skipped.length) {
-        const det = el("details");
-        det.appendChild(el("summary", null, out.skipped.length + " shape" + (out.skipped.length === 1 ? "" : "s") + " left as they were"));
-        const ul = el("ul");
-        for (const s of out.skipped) ul.appendChild(el("li", null, s.label + ": " + s.reason));
-        det.appendChild(ul);
-        card.appendChild(det);
-      }
-    } catch (err) {
-      card.appendChild(el("p", "status bad", "Could not fix this file: " + err.message));
-    } finally {
-      pending--;
-      updateToolbar();
-    }
-  }
-  input.value = "";
-  updateToolbar();
-}
-
-zipBtn.addEventListener("click", () => {
-  const url = URL.createObjectURL(makeZip(fixedFiles));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "svg-fixed-" + new Date().toISOString().slice(0, 10) + ".zip";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
-});
-
-input.addEventListener("change", () => handleFiles(input.files));
-drop.addEventListener("keydown", e => {
-  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); }
-});
-// Dropping anywhere on the page sends the files to the tool, and stops the browser opening them
-drop.addEventListener("dragenter", () => drop.classList.add("over"));
-drop.addEventListener("dragover", () => drop.classList.add("over"));
-drop.addEventListener("dragleave", () => drop.classList.remove("over"));
-window.addEventListener("dragover", e => e.preventDefault());
-window.addEventListener("drop", e => {
-  e.preventDefault();
-  drop.classList.remove("over");
-  if (e.dataTransfer && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
-});
-updateToolbar();
 </script>
+<script src="app.js"></script>
 </body>
 </html>
