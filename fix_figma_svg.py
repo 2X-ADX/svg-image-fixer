@@ -1,0 +1,183 @@
+"""
+Fix Figma SVG exports where an image is used as a fill through a <pattern>.
+
+Some programs (e.g. Adobe Illustrator) drop the image in that form. This
+rewrites each such fill as a clip path around a plain <image>, which all
+common SVG readers handle.
+
+Usage:  python3 fix_figma_svg.py input.svg [output.svg]
+Default output: input-fixed.svg (the original is never modified).
+"""
+import re
+import sys
+import os
+from xml.etree import ElementTree as ET
+
+SVG_NS = "http://www.w3.org/2000/svg"
+XLINK = "http://www.w3.org/1999/xlink"
+
+
+def parse_transform(s):
+    """Return (tx, ty, sx, sy) for translate/scale lists, or raise."""
+    tx = ty = 0.0
+    sx = sy = 1.0
+    for name, args in re.findall(r"(\w+)\(([^)]*)\)", s or ""):
+        v = [float(x) for x in re.split(r"[ ,]+", args.strip()) if x]
+        if name == "translate":
+            tx += v[0]
+            ty += v[1] if len(v) > 1 else 0.0
+        elif name == "scale":
+            sx *= v[0]
+            sy *= v[1] if len(v) > 1 else v[0]
+        else:
+            raise ValueError(f"unsupported transform: {name}")
+    return tx, ty, sx, sy
+
+
+def path_bbox(d):
+    tokens = re.findall(r"[MLCZ]|-?\d*\.?\d+(?:e-?\d+)?", d)
+    pts, cur, i, cmd = [], (0.0, 0.0), 0, None
+
+    def num():
+        nonlocal i
+        v = float(tokens[i])
+        i += 1
+        return v
+
+    while i < len(tokens):
+        if tokens[i] in ("M", "L", "C", "Z"):
+            cmd = tokens[i]
+            i += 1
+            if cmd == "Z":
+                continue
+        if cmd in ("M", "L"):
+            cur = (num(), num())
+            pts.append(cur)
+        elif cmd == "C":
+            p1 = (num(), num())
+            p2 = (num(), num())
+            p3 = (num(), num())
+            p0 = cur
+            for k in range(1, 101):
+                t = k / 100
+                mt = 1 - t
+                pts.append((
+                    mt**3 * p0[0] + 3 * mt * mt * t * p1[0] + 3 * mt * t * t * p2[0] + t**3 * p3[0],
+                    mt**3 * p0[1] + 3 * mt * mt * t * p1[1] + 3 * mt * t * t * p2[1] + t**3 * p3[1],
+                ))
+            cur = p3
+        else:
+            raise ValueError("unsupported path command in shape")
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    return min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)
+
+
+def get_attr(tag, name):
+    m = re.search(r'\s' + re.escape(name) + r'="([^"]*)"', tag)
+    return m.group(1) if m else None
+
+
+def convert(text):
+    # 1. Map pattern id -> (use href id, use transform) and image id -> (w, h, href)
+    patterns = {}
+    for pm in re.finditer(r"<pattern\b[^>]*>(.*?)</pattern>", text, re.S):
+        ptag = pm.group(0)
+        pid = get_attr(ptag, "id")
+        use = re.search(r"<use\b[^>]*/>", pm.group(1))
+        if not use:
+            continue
+        href = get_attr(use.group(0), "xlink:href") or get_attr(use.group(0), "href")
+        tr = get_attr(use.group(0), "transform")
+        if href and href.startswith("#"):
+            patterns[pid] = (href[1:], tr)
+
+    images = {}
+    for im in re.finditer(r"<image\b[^>]*/>", text):
+        tag = im.group(0)
+        iid = get_attr(tag, "id")
+        if iid:
+            images[iid] = (
+                float(get_attr(tag, "width")),
+                float(get_attr(tag, "height")),
+                get_attr(tag, "xlink:href") or get_attr(tag, "href"),
+            )
+
+    converted = 0
+    clips = []
+
+    def replace_shape(m):
+        nonlocal converted
+        tag = m.group(0)
+        fill = get_attr(tag, "fill")
+        fm = re.match(r"url\(#([^)]+)\)$", fill or "")
+        if not fm or fm.group(1) not in patterns:
+            return tag
+        pid = fm.group(1)
+        image_id, use_tr = patterns[pid]
+        if image_id not in images:
+            return tag
+        img_w, img_h, href = images[image_id]
+        tx, ty, sx, sy = parse_transform(use_tr)
+
+        if tag.startswith("<path"):
+            d = get_attr(tag, "d")
+            x0, y0, w, h = path_bbox(d)
+            shape_svg = f'<path d="{d}"/>'
+        elif tag.startswith("<rect"):
+            x0 = float(get_attr(tag, "x") or 0)
+            y0 = float(get_attr(tag, "y") or 0)
+            w = float(get_attr(tag, "width"))
+            h = float(get_attr(tag, "height"))
+            shape_svg = f'<rect x="{x0}" y="{y0}" width="{w}" height="{h}"/>'
+        else:
+            return tag
+
+        ix = x0 + tx * w
+        iy = y0 + ty * h
+        iw = img_w * sx * w
+        ih = img_h * sy * h
+        cid = f"clip{len(clips)}"
+        clips.append(f'<clipPath id="{cid}">{shape_svg}</clipPath>')
+        converted += 1
+        return (
+            f'<g clip-path="url(#{cid})">'
+            f'<image x="{ix:.4f}" y="{iy:.4f}" width="{iw:.4f}" height="{ih:.4f}" '
+            f'preserveAspectRatio="none" xlink:href="{href}"/></g>'
+        )
+
+    body = re.sub(r"<(?:path|rect)\b[^>]*/>", replace_shape, text)
+
+    if converted == 0:
+        raise SystemExit("No image-pattern fills found; nothing to change.")
+
+    # Remove each pattern and image only if nothing else still uses it.
+    # Other <defs> (e.g. a clip path used by an outer group) are left alone.
+    for pid, (image_id, _) in patterns.items():
+        if not re.search(r"url\(#" + re.escape(pid) + r"\)", body):
+            body = re.sub(r"<pattern\b[^>]*id=\"" + re.escape(pid) + r"\".*?</pattern>", "", body, flags=re.S)
+            if not re.search(r"#" + re.escape(image_id) + r"\b", body):
+                body = re.sub(r"<image\b[^>]*id=\"" + re.escape(image_id) + r"\"[^>]*/>", "", body)
+    body = re.sub(r"<defs>\s*</defs>", "", body)
+
+    # Add our clip paths in a new <defs> right after the opening <svg> tag
+    defs = "<defs>" + "".join(clips) + "</defs>"
+    body = re.sub(r"(<svg\b[^>]*>)", lambda m: m.group(1) + defs, body, count=1)
+    return body, converted
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+    src = sys.argv[1]
+    out = sys.argv[2] if len(sys.argv) > 2 else os.path.splitext(src)[0] + "-fixed.svg"
+    text = open(src, encoding="utf-8").read()
+    fixed, n = convert(text)
+    ET.fromstring(fixed.encode("utf-8"))  # confirm the result is valid XML
+    open(out, "w", encoding="utf-8").write(fixed)
+    print(f"converted {n} image fill(s) -> {out}")
+
+
+if __name__ == "__main__":
+    main()

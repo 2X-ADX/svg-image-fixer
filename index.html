@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SVG Image Fixer</title>
+<style>
+:root {
+  --bg: #f5f4f0;
+  --fg: #1b1e22;
+  --muted: #5d636b;
+  --line: #d8d5cd;
+  --card: #ffffff;
+  --accent: #1f5f7a;
+  --accent-fg: #ffffff;
+  --ok: #1d6b41;
+  --bad: #a12c2c;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171a;
+    --fg: #ecebe8;
+    --muted: #a0a6ae;
+    --line: #353a41;
+    --card: #1d2024;
+    --accent: #7fbcd6;
+    --accent-fg: #0f1417;
+    --ok: #74d19c;
+    --bad: #ff8d8d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171a;
+  --fg: #ecebe8;
+  --muted: #a0a6ae;
+  --line: #353a41;
+  --card: #1d2024;
+  --accent: #7fbcd6;
+  --accent-fg: #0f1417;
+  --ok: #74d19c;
+  --bad: #ff8d8d;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+}
+main {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 40px max(16px, env(safe-area-inset-right, 0px)) 56px max(16px, env(safe-area-inset-left, 0px));
+}
+h1 { font-size: 26px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.01em; }
+.lede { color: var(--muted); margin: 0 0 28px; text-wrap: pretty; }
+
+.drop {
+  display: block;
+  border: 1.5px dashed var(--line);
+  border-radius: 10px;
+  padding: 36px 20px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--card);
+}
+.drop:hover, .drop:focus-visible, .drop.over { border-color: var(--accent); outline: none; }
+.drop:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
+.drop-title { font-weight: 600; display: block; }
+.drop-note { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+#results { margin-top: 24px; display: grid; gap: 12px; }
+.item {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  min-width: 0;
+}
+.item-name { font-weight: 600; overflow-wrap: anywhere; }
+.status { margin: 4px 0 0; font-size: 14px; }
+.status.ok { color: var(--ok); }
+.status.none { color: var(--muted); }
+.status.bad { color: var(--bad); }
+.btn {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 7px 14px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 14px;
+}
+.btn:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+details { margin-top: 10px; font-size: 13px; color: var(--muted); }
+details summary { cursor: pointer; }
+details ul { margin: 6px 0 0; padding-left: 18px; }
+.foot { margin-top: 32px; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>SVG Image Fixer</h1>
+  <p class="lede">Some Figma SVG exports lose their images when opened in Illustrator and similar tools. Choose the file here to get a copy where the images show. Your files are processed on this computer and never uploaded.</p>
+
+  <label id="drop" class="drop" tabindex="0">
+    <input id="file" class="visually-hidden" type="file" accept=".svg,image/svg+xml" multiple>
+    <span class="drop-title">Choose SVG files or drop them here</span>
+    <span class="drop-note">Your original file is not changed. You get a new copy with "-fixed" in its name.</span>
+  </label>
+
+  <section id="results" aria-live="polite"></section>
+
+  <p class="foot">Works with images placed inside a shape through a pattern, the way Figma exports them. Rectangles and paths are supported. Anything else is left as it was and listed under the file.</p>
+</main>
+
+<script>
+const SVG_NS = "http://www.w3.org/2000/svg";
+const XLINK = "http://www.w3.org/1999/xlink";
+
+// 2D affine matrices as [a, b, c, d, e, f]
+function mul(M, N) {
+  return [
+    M[0] * N[0] + M[2] * N[1],
+    M[1] * N[0] + M[3] * N[1],
+    M[0] * N[2] + M[2] * N[3],
+    M[1] * N[2] + M[3] * N[3],
+    M[0] * N[4] + M[2] * N[5] + M[4],
+    M[1] * N[4] + M[3] * N[5] + M[5]
+  ];
+}
+
+function parseTransform(s) {
+  let M = [1, 0, 0, 1, 0, 0];
+  const re = /(\w+)\s*\(([^)]*)\)/g;
+  let m;
+  while ((m = re.exec(s || ""))) {
+    const v = m[2].trim().split(/[\s,]+/).filter(Boolean).map(Number);
+    let N;
+    if (m[1] === "translate") N = [1, 0, 0, 1, v[0], v[1] || 0];
+    else if (m[1] === "scale") N = [v[0], 0, 0, v.length > 1 ? v[1] : v[0], 0, 0];
+    else if (m[1] === "matrix") N = v;
+    else throw new Error("transform '" + m[1] + "' is not supported");
+    M = mul(M, N);
+  }
+  return M;
+}
+
+// Bounding box [x, y, width, height] of a path made of M, L, H, V, C and Z
+function pathBBox(d) {
+  const t = d.match(/[A-Za-z]|-?(?:\d+\.?\d*|\.\d+)(?:e-?\d+)?/g) || [];
+  let i = 0, cmd = null, cur = [0, 0], start = [0, 0];
+  const pts = [];
+  const num = () => {
+    if (i >= t.length) throw new Error("path data is incomplete");
+    return parseFloat(t[i++]);
+  };
+  while (i < t.length) {
+    if (/^[A-Za-z]$/.test(t[i])) {
+      cmd = t[i++];
+      if (cmd === "Z") { cur = start.slice(); continue; }
+    }
+    if (cmd === "M") { cur = [num(), num()]; start = cur; pts.push(cur); cmd = "L"; }
+    else if (cmd === "L") { cur = [num(), num()]; pts.push(cur); }
+    else if (cmd === "H") { cur = [num(), cur[1]]; pts.push(cur); }
+    else if (cmd === "V") { cur = [cur[0], num()]; pts.push(cur); }
+    else if (cmd === "C") {
+      const p1 = [num(), num()], p2 = [num(), num()], p3 = [num(), num()], p0 = cur;
+      for (let k = 1; k <= 100; k++) {
+        const s = k / 100, u = 1 - s;
+        pts.push([
+          u * u * u * p0[0] + 3 * u * u * s * p1[0] + 3 * u * s * s * p2[0] + s * s * s * p3[0],
+          u * u * u * p0[1] + 3 * u * u * s * p1[1] + 3 * u * s * s * p2[1] + s * s * s * p3[1]
+        ]);
+      }
+      cur = p3;
+    }
+    else throw new Error("path command '" + cmd + "' is not supported");
+  }
+  if (!pts.length) throw new Error("path has no points");
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys);
+  return [x0, y0, Math.max(...xs) - x0, Math.max(...ys) - y0];
+}
+
+const round = v => Number(v.toFixed(4));
+
+function convertSvg(text) {
+  const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+  if (doc.getElementsByTagName("parsererror").length) throw new Error("this file is not valid SVG");
+  const svg = doc.documentElement;
+  if (svg.localName !== "svg") throw new Error("this file is not an SVG drawing");
+
+  // Pattern id -> { element, image id, transform }
+  const patterns = new Map();
+  for (const p of svg.querySelectorAll("pattern")) {
+    const use = p.querySelector("use");
+    if (!use) continue;
+    const href = use.getAttributeNS(XLINK, "href") || use.getAttribute("href") || "";
+    patterns.set(p.getAttribute("id"), {
+      element: p,
+      imageId: href.replace(/^#/, ""),
+      transform: use.getAttribute("transform") || ""
+    });
+  }
+
+  const images = new Map();
+  for (const im of svg.querySelectorAll("image")) {
+    if (im.getAttribute("id")) images.set(im.getAttribute("id"), im);
+  }
+
+  let defs = svg.querySelector("defs");
+  if (!defs) {
+    defs = doc.createElementNS(SVG_NS, "defs");
+    svg.insertBefore(defs, svg.firstChild);
+  }
+
+  let converted = 0;
+  const skipped = [];
+  let n = 0;
+
+  for (const shape of Array.from(svg.querySelectorAll("path, rect"))) {
+    const fill = shape.getAttribute("fill") || "";
+    const m = fill.match(/^url\(#(.+)\)$/);
+    if (!m) continue;
+    const pat = patterns.get(m[1]);
+    if (!pat) continue; // a gradient or other fill, not an image pattern
+
+    const label = shape.getAttribute("id") || (shape.localName + " " + (converted + skipped.length + 1));
+    try {
+      const img = images.get(pat.imageId);
+      if (!img) throw new Error("the image it uses is missing from the file");
+      if (shape.hasAttribute("clip-path") || shape.hasAttribute("mask") || shape.hasAttribute("filter")) {
+        throw new Error("the shape already has a clip, mask or filter");
+      }
+
+      const [a, b, c, d, e, f] = parseTransform(pat.transform);
+      if (b || c || a <= 0 || d <= 0) throw new Error("rotated, skewed or flipped images are not supported");
+      const imgW = parseFloat(img.getAttribute("width"));
+      const imgH = parseFloat(img.getAttribute("height"));
+      if (!imgW || !imgH) throw new Error("the image has no width or height");
+
+      let x0, y0, w, h;
+      if (shape.localName === "rect") {
+        x0 = parseFloat(shape.getAttribute("x") || 0);
+        y0 = parseFloat(shape.getAttribute("y") || 0);
+        w = parseFloat(shape.getAttribute("width"));
+        h = parseFloat(shape.getAttribute("height"));
+      } else {
+        [x0, y0, w, h] = pathBBox(shape.getAttribute("d") || "");
+      }
+
+      // Pattern content is measured in the shape's bounding box unless the pattern says otherwise
+      const inUserUnits = pat.element.getAttribute("patternContentUnits") === "userSpaceOnUse";
+      const left = inUserUnits ? e : x0 + e * w;
+      const top = inUserUnits ? f : y0 + f * h;
+      const width = inUserUnits ? a * imgW : a * imgW * w;
+      const height = inUserUnits ? d * imgH : d * imgH * h;
+
+      const clipId = "fix-clip-" + (++n);
+      const clip = doc.createElementNS(SVG_NS, "clipPath");
+      clip.setAttribute("id", clipId);
+      const clipShape = shape.cloneNode(false);
+      for (const attr of ["id", "fill", "stroke", "opacity", "transform", "style"]) clipShape.removeAttribute(attr);
+      clip.appendChild(clipShape);
+      defs.appendChild(clip);
+
+      // Wrapper keeps the shape's own transform and opacity
+      const wrapper = doc.createElementNS(SVG_NS, "g");
+      for (const attr of ["transform", "opacity"]) {
+        if (shape.hasAttribute(attr)) wrapper.setAttribute(attr, shape.getAttribute(attr));
+      }
+
+      const clipped = doc.createElementNS(SVG_NS, "g");
+      clipped.setAttribute("clip-path", "url(#" + clipId + ")");
+      const image = doc.createElementNS(SVG_NS, "image");
+      image.setAttribute("x", round(left));
+      image.setAttribute("y", round(top));
+      image.setAttribute("width", round(width));
+      image.setAttribute("height", round(height));
+      image.setAttribute("preserveAspectRatio", "none");
+      image.setAttributeNS(XLINK, "xlink:href", img.getAttributeNS(XLINK, "href") || img.getAttribute("href"));
+      clipped.appendChild(image);
+      wrapper.appendChild(clipped);
+
+      // Keep an outline if the shape had a stroke
+      const stroke = shape.getAttribute("stroke");
+      if (stroke && stroke !== "none") {
+        const outline = shape.cloneNode(false);
+        for (const attr of ["id", "fill", "clip-path", "transform", "opacity"]) outline.removeAttribute(attr);
+        outline.setAttribute("fill", "none");
+        wrapper.appendChild(outline);
+      }
+
+      shape.parentNode.replaceChild(wrapper, shape);
+      converted++;
+    } catch (err) {
+      skipped.push({ label, reason: err.message });
+    }
+  }
+
+  if (converted === 0) {
+    return { text: null, converted: 0, skipped };
+  }
+
+  // Remove patterns and images that nothing uses any more
+  const usesId = (id, skipEl) => {
+    const re = new RegExp("#" + id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![\\w-])");
+    for (const el of svg.querySelectorAll("*")) {
+      if (skipEl && (el === skipEl || skipEl.contains(el))) continue;
+      for (const attr of el.attributes) if (re.test(attr.value)) return true;
+    }
+    return false;
+  };
+  for (const [pid, pat] of patterns) {
+    if (!usesId(pid, pat.element)) {
+      pat.element.parentNode.removeChild(pat.element);
+      if (pat.imageId && images.has(pat.imageId) && !usesId(pat.imageId, null)) {
+        const im = images.get(pat.imageId);
+        im.parentNode.removeChild(im);
+      }
+    }
+  }
+  if (!defs.childNodes.length) defs.parentNode.removeChild(defs);
+
+  const outText = '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(svg);
+  if (new DOMParser().parseFromString(outText, "image/svg+xml").getElementsByTagName("parsererror").length) {
+    throw new Error("the converted file did not validate");
+  }
+  return { text: outText, converted, skipped };
+}
+
+// ---- page ----
+const drop = document.getElementById("drop");
+const input = document.getElementById("file");
+const results = document.getElementById("results");
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+async function handleFiles(files) {
+  for (const file of Array.from(files)) {
+    const card = el("article", "item");
+    card.appendChild(el("div", "item-name", file.name));
+    results.prepend(card);
+    try {
+      const out = convertSvg(await file.text());
+      if (out.converted === 0) {
+        card.appendChild(el("p", "status none", "No image fills to fix. The file is unchanged."));
+      } else {
+        const name = file.name.replace(/\.svg$/i, "") + "-fixed.svg";
+        const url = URL.createObjectURL(new Blob([out.text], { type: "image/svg+xml" }));
+        card.appendChild(el("p", "status ok", "Fixed " + out.converted + " image" + (out.converted === 1 ? "" : "s") + "."));
+        const link = el("a", "btn", "Download fixed SVG");
+        link.href = url;
+        link.download = name;
+        card.appendChild(link);
+      }
+      if (out.skipped.length) {
+        const det = el("details");
+        det.appendChild(el("summary", null, out.skipped.length + " shape" + (out.skipped.length === 1 ? "" : "s") + " left as they were"));
+        const ul = el("ul");
+        for (const s of out.skipped) ul.appendChild(el("li", null, s.label + ": " + s.reason));
+        det.appendChild(ul);
+        card.appendChild(det);
+      }
+    } catch (err) {
+      card.appendChild(el("p", "status bad", "Could not fix this file: " + err.message));
+    }
+  }
+  input.value = "";
+}
+
+input.addEventListener("change", () => handleFiles(input.files));
+drop.addEventListener("keydown", e => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); }
+});
+["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => {
+  e.preventDefault(); drop.classList.add("over");
+}));
+["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => {
+  e.preventDefault(); drop.classList.remove("over");
+}));
+drop.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
+</script>
+</body>
+</html>
